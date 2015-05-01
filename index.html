@@ -28,13 +28,15 @@
     <script src = "js/plate.js"></script>
     <script src = "js/scatter.js"></script>
     <script src = "js/cloud.js"></script>
+    <script src = "js/chemical.js"></script>
+
 
     <!-- add own stylesheet-->
     <link rel="stylesheet" type="text/css" href="css/myStyle.css">
 
 </head>
 <body>
-    <div class="container">
+    <div class="container-fluid">
         <h1>Mightyscreen</h1>
 
         <div class="row">
@@ -45,28 +47,32 @@
 
 
         <div class="row">
+            <div class = "col-md-6">
+
             <div class="col-md-9" id="distVis1">
             </div>
-        </div>
 
-        <div class="row">
             <div class="col-md-9" id="distVis2">
-            </div>
-        </div>
+            </div>      
 
-        <div class="row">
             <div class="col-md-9" id="distVis3">
+            </div>    
+
             </div>
+            <div class = "col-md-6" id="chemicalVis">
+
+            </div>
+
         </div>
 
-        <div class="row">
-            <div class="col-md-9" id="plateVis">
-            </div>
-        </div>
+
+
 
         <div class="row">
-            <div class="col-md-9" id="scatterVis">
+            <div class="col-md-6" id="scatterVis">
             </div>
+            <div class="col-md-6" id="plateVis">
+            </div>            
         </div>
 
 
@@ -103,9 +109,13 @@
 
             //channel are readouts selected for visualization  
             var channel_1  = "fpA";
-            var channel_2  = "fiA";
-            var channel_3  = "fpB";
+            var channel_2  = "fpB";
+            var channel_3  = "fiA";
 
+            //brushed region
+            var brush = {};
+            //selected chemical list
+            var selection = [];
             // this function can convert Date objects to a string
             // it can also convert strings to Date objects
             // see: https://github.com/mbostock/d3/wiki/Time-Formatting
@@ -123,7 +133,7 @@
                 
                 //TODO: channel selector
                 //select which plate to display
-                var plateselector = new PlateSelector(d3.select("#plateSelector"),groupedData,MyEventHandler);
+                var plateselector = new PlateSelector(d3.select("#plateSelector"),groupedData,"1922",MyEventHandler);
 
                 //channel 1 for selection
                 var distvis1 = new DistVis(d3.select("#distVis1"),groupedData[0].values,channel_1,MyEventHandler);
@@ -133,7 +143,10 @@
                 
                 //channel 3 for selection
                 var distvis3 = new DistVis(d3.select("#distVis3"),groupedData[0].values,channel_3,MyEventHandler);
-                
+
+                //Chemical View 
+                var chemicalvis = new ChemicalVis(d3.select("#chemicalVis"),groupedData[0].values,MyEventHandler);
+
                 //plate heat plot
                 var platevis = new PlateVis(d3.select("#plateVis"),groupedData[0].values,channel_1,MyEventHandler)
 
@@ -146,12 +159,46 @@
                 // TODO: bind the eventHandler to the Vis Objects
                 // events will be created from the CountVis object (nothing to do here)
                 // events will be consumed by the PrioVis and AgeVis object (binding should happen here)
-                //$(MyEventHandler).bind("selectionChanged", function(event, s, e){
+                $(MyEventHandler).bind("brush", function(event, s, e, c){
+                    
+                    brush[c] = [s,e];
 
-                //     agevis.onSelectionChange(s,e);
-                //     priovis.onSelectionChange(s,e);
-                //     $("#brushInfo").text("From"+s+"To"+e);
-                // });
+                    //update these visualization
+                    platevis.onSelectionChange(brush);
+                    scattervis.onSelectionChange(brush);
+                });
+
+
+                $(MyEventHandler).bind("plate", function(event, p){
+                    
+                    var data = groupedData.filter(function(d) {
+                        if (d.key == p) {
+                            return d.values;
+                        }
+                    });
+
+                    var d = data[0].values;
+                    //update these visualization
+                    plateselector.onPlateChange(data[0].key);
+                    distvis1.onPlateChange(d);
+                    distvis2.onPlateChange(d);
+                    distvis3.onPlateChange(d);
+                    platevis.onPlateChange(d);
+                    scattervis.onPlateChange(d);
+                    cloudvis.onPlateChange(d);
+                    chemicalvis.onPlateChange(d);
+                });
+
+                $(MyEventHandler).bind("select", function(event, p){
+                    
+                    if (selection.indexOf(p) > -1) {
+                        selection.pop(p);
+                    }else {
+                        selection.push(p);
+                    }
+                    //update these visualization
+                    chemicalvis.onChemSelectionChange(selection);
+                });
 
             }
 

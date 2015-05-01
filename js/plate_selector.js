@@ -19,9 +19,10 @@
  * @param _eventHandler -- the Eventhandling Object to emit data to (see Task 4)
  * @constructor
  */
-PlateSelector = function(_parentElement, _data, _eventHandler){
+PlateSelector = function(_parentElement, _data, _selection, _eventHandler){
     this.parentElement = _parentElement;
     this.data = _data;
+    this.selection = _selection;
     this.eventHandler = _eventHandler;
     this.displayData = [];
 
@@ -68,25 +69,7 @@ PlateSelector.prototype.initVis = function(){
     // filter, aggregate, modify data
     this.wrangleData();
 
-    this.plates = this.svg.selectAll(".plate")
-        .data(this.data)
-        .enter()
-        .append("g")
-        .attr("class","plate")
-        .attr("transform", function(d,i){ return "translate("+ i*105 + ",0)"; });
-
-    this.plates.append("rect")
-        .attr("width",100)
-        .attr("height",80)
-        .attr("fill","grey")
-        .attr("fill-opacity",0.5)
-        .on("click",function(){
-            d3.select(this).attr("fill","red");
-        });
-
-    this.plates.append("text")
-        .attr("y",12)
-        .text(function(d){ return d.key; });
+    
 
     // call the update method
     this.updateVis();
@@ -111,8 +94,31 @@ PlateSelector.prototype.wrangleData= function(){
  */
 PlateSelector.prototype.updateVis = function(){
 
+    var that = this;
     // TODO: implement update graphs (D3: update, enter, exit)
+    this.svg.selectAll(".plate").remove()
 
+    this.plates = this.svg.selectAll(".plate")
+        .data(this.data)
+        .enter()
+        .append("g")
+        .attr("class","plate")
+        .attr("transform", function(d,i){ return "translate("+ i*105 + ",0)"; });
+
+    this.plates.append("rect")
+        .attr("width",100)
+        .attr("height",80)
+        .attr("fill",function(d){ 
+            return (d.key == that.selection) ? "red" : "grey";
+        })
+        .attr("fill-opacity",0.5)
+        .on("click",function(d){
+            $(that.eventHandler).trigger("plate",d.key);
+        });
+
+    this.plates.append("text")
+        .attr("y",12)
+        .text(function(d){ return d.key; });
 }
 
 /**
@@ -125,6 +131,17 @@ PlateSelector.prototype.onSelectionChange= function (selectionStart, selectionEn
 
     // TODO: call wrangle function
 
+    // do nothing -- no update when brushing
+
+}
+
+
+PlateSelector.prototype.onPlateChange= function (p){
+
+    // TODO: call wrangle function
+    this.selection = p;
+
+    this.updateVis();
     // do nothing -- no update when brushing
 
 }

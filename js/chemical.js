@@ -12,7 +12,7 @@
  * */
 
 /**
- * CloudVis object for final project of CS171
+ * ChemicalVis object for final project of CS171
  * @param _parentElement -- the HTML or SVG element (D3 node) to which to attach the vis
  * @param _data -- the data array
  * @param _metaData -- the meta-data / data description object
@@ -20,18 +20,18 @@
  * @constructor
  */
 
-CloudVis = function(_parentElement, _data, _channel, _reverse, _eventHandler){
+ChemicalVis = function(_parentElement, _data, _eventHandler){
     this.parentElement = _parentElement;
     this.data = _data;
-    this.channel = _channel;
-    this.reverse = _reverse;
+    this.selection = [];
     this.eventHandler = _eventHandler;
     this.displayData = [];
 
+    this.box = {width:125,height:200};
 
     // TODO: define all "constants" here
     this.margin = {top: 20, right: 20, bottom: 20, left: 20},
-    this.width = 1000 - this.margin.left - this.margin.right,
+    this.width = 800 - this.margin.left - this.margin.right,
     this.height = 500 - this.margin.top - this.margin.bottom;
 
 
@@ -42,7 +42,7 @@ CloudVis = function(_parentElement, _data, _channel, _reverse, _eventHandler){
 /**
  * Method that sets up the SVG and the variables
  */
-CloudVis.prototype.initVis = function(){
+ChemicalVis.prototype.initVis = function(){
 
     var that = this; // read about the this
 
@@ -61,80 +61,18 @@ CloudVis.prototype.initVis = function(){
       .append("g")
         .attr("transform", "translate(" + this.margin.left + "," + this.margin.top + ")");
 
-    // filter, aggregate, modify data
-    this.wrangleData();
-    this.nodes = this.displayData;
 
     // creates axis and scales
-    this.scale = d3.scale.linear()
-        .domain(d3.extent(this.nodes, function(d) { return d.readout; }))
-    
-    if (this.reverse) {
-        this.scale.range([(this.width+this.height) / 5, 0]);
-    }else {
-        this.scale.range([0, (this.width+this.height) / 5]);
-    }
-    //set the radius and inital positions
-    this.displayData.map(function(d) {
-        res = d;
-        // res.x = (Math.random() - 0.5) * 200 + that.width / 2, 
-        // res.y = (Math.random() - 0.5) * 200 + that.height /2,
-        res.radius  = that.scale(res.readout) / 2 ;
-        return res; 
-    });
+    this.x = d3.scale.linear()
+        .domain([0, 5])
+        .range([0, this.width]);
 
-    //start the force layout
-    this.force = d3.layout.force()
-        .size([this.width,this.height])
-        .charge(0)
-        .gravity(0.05)
-        .nodes(this.nodes)
-        .start();
+    this.y = d3.scale.linear()
+        .domain([0, 2])
+        .range([0, this.height]);
 
-    //set ticks
-    this.force.on("tick", function(e) {
-        var q = d3.geom.quadtree(that.nodes),
-            i = 0,
-            n = that.nodes.length;
-
-        while (++i < n) q.visit(that.collide(that.nodes[i]));
-
-            that.svg.selectAll(".node")
-              .attr("transform", function(d) { return "translate("+d.x+","+d.y+")";  })
-    });
-
-    //add symbols (svg reference)
-    this.symbol = this.svg
-        .append("g")
-        .attr("class", "symbol")
-        .html(this.displayData.map(function(d) {return d.svg;}).join());
-
-    this.node = this.svg.selectAll(".node")
-        .data(this.displayData)
-        .enter()
-        .append("g")
-        .attr("class", "node")
-        .attr("transform",function(d){ 
-            return "translate("+d.x+","+d.y+")";
-        })
-        .call(this.force.drag);
-    
-    //This is the "handle" of molecules looks ugly can be improved
-    this.node.append("circle")
-        .attr("fill","grey")
-        .attr("fill-opacity",0.2)
-        .attr("r",function(d) {return that.scale(d.readout) / 20;})
-
-    //the collision box... doesn't work
-    // this.node.append("rect")
-    //     .attr("height",function(d) {return that.scale(d.readout); })
-    //     .attr("width",function(d) {return that.scale(d.readout); });
-
-    this.node.append("use")
-      .attr("xlink:href", function(d) {return "#sym"+d.platewell; })
-      .attr("width", function(d) {return that.scale(d.readout); })
-      .attr("height", function(d) {return that.scale(d.readout); });
-
+    // filter, aggregate, modify data
+    this.wrangleData();
 
     // call the update method
     this.updateVis();
@@ -144,25 +82,17 @@ CloudVis.prototype.initVis = function(){
 /**
  * Method to wrangle the data. In this case it takes an options object
   */
-CloudVis.prototype.wrangleData= function(){
+ChemicalVis.prototype.wrangleData= function(){
 
     // displayData should hold the data which is visualized
     // pretty simple in this case -- no modifications needed
     // A certain propety will be used here. As an example we use fpA
     that = this;
-    var filtered = this.data.filter(function(d) {return d.svg || 0 ;})
 
-    var data = filtered.map(function(d) {
-        return  {'platewell':d.platewell,
-                'svg':d.svg,
-                'readout':d[that.channel],
-            };
-    });
+    //select molecules in selection
+    var filtered = this.data.filter(function(d) {return d.svg && (that.selection.indexOf(d.platewell) > -1) ;});
 
-    data = data.sort(function(a,b) {
-        return that.reverse ?  d3.ascending(a.readout,b.readout) : d3.descending(a.readout,b.readout); });
-
-    this.displayData = data.slice(0,50);
+    this.displayData = filtered;
 
 }
 
@@ -172,11 +102,61 @@ CloudVis.prototype.wrangleData= function(){
  * the drawing function - should use the D3 selection, enter, exit
  * @param _options -- only needed if different kinds of updates are needed
  */
-CloudVis.prototype.updateVis = function(){
+ChemicalVis.prototype.updateVis = function(){
 
     // TODO: implement update graphs (D3: update, enter, exit)
 
+    //add symbols (svg reference)
+    this.symbol = this.svg
+        .append("g")
+        .attr("class", "symbol")
+        .html(this.displayData.map(function(d) {return d.svg;}).join());
 
+    this.svg.selectAll(".chemical").remove();
+
+    this.chemical = this.svg.selectAll(".chemical")
+        .data(this.displayData)
+        .enter()
+        .append("g")
+        .attr("class", "chemical")
+        .attr("transform",function(d, i){ 
+            return "translate("+ that.x(i % 5) +","+  that.y(Math.floor(i/5))  +")";
+        })
+        .on("click",function(d){
+            $(that.eventHandler).trigger("select",d.platewell);
+        });
+    
+    this.chemical.append("rect")
+        .attr("x",5)
+        .attr("y",5)
+        .attr("width",this.box.width)
+        .attr("height",this.box.height)
+        .attr("style","fill:grey");
+
+
+    this.chemical.append("rect")
+        .attr("width",this.box.width)
+        .attr("height",this.box.height*0.75)
+        .attr("style","fill:white;stroke:black;");
+
+    this.chemical.append("use")
+      .attr("xlink:href", function(d) {return "#sym"+d.platewell; })
+      .attr("width", this.box.width)
+      .attr("height", this.box.height*0.75);
+
+
+
+    this.chemical.append("rect")
+        .attr("width",this.box.width)
+        .attr("height",this.box.height*0.25)
+        .attr("y",this.box.height*0.75)
+        .attr("style","fill:white;stroke:black;")
+
+    this.chemical.append("text")
+        .attr("y",this.box.height*0.75+20)
+        .attr("x",10)
+        .attr("anchor","left")
+        .text(function(d) {return "logP: "+d.logp;})
 }
 
 /**
@@ -185,15 +165,20 @@ CloudVis.prototype.updateVis = function(){
  * be defined here.
  * @param selection
  */
-CloudVis.prototype.onSelectionChange= function (selectionStart, selectionEnd){
+ChemicalVis.prototype.onChemSelectionChange= function (_selection){
 
     // TODO: call wrangle function
+    this.selection=_selection;
+
+    this.wrangleData();
+
+    this.updateVis();
 
     // do nothing -- no update when brushing
 
 }
 
-CloudVis.prototype.onPlateChange= function (d){
+ChemicalVis.prototype.onPlateChange= function (d){
 
 
     // TODO: call wrangle function
@@ -203,7 +188,6 @@ CloudVis.prototype.onPlateChange= function (d){
 
     this.updateVis();
     // do nothing -- no update when brushing
-
 }
 
 /*
@@ -214,7 +198,7 @@ CloudVis.prototype.onPlateChange= function (d){
  *
  * */
 
-CloudVis.prototype.collide =  function(node) {
+ChemicalVis.prototype.collide =  function(node) {
   var r = node.radius + 16,
       nx1 = node.x - r,
       nx2 = node.x + r,

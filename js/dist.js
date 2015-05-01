@@ -29,11 +29,9 @@ DistVis = function(_parentElement, _data, _channel, _eventHandler){
     
 
     // TODO: define all "constants" here
-    this.margin = {top: 20, right: 0, bottom: 100, left: 80},
-    this.width = 1000 - this.margin.left - this.margin.right,
-    this.height = 200 - this.margin.top - this.margin.bottom;
-
-
+    this.margin = {top: 20, right: 20, bottom: 50, left: 80},
+    this.width = 700 - this.margin.left - this.margin.right,
+    this.height = 150 - this.margin.top - this.margin.bottom;
 
     this.initVis();
 }
@@ -61,8 +59,9 @@ DistVis.prototype.initVis = function(){
       .append("g")
         .attr("transform", "translate(" + this.margin.left + "," + this.margin.top + ")");
 
-
     // creates axis and scales
+    this.format = d3.format("s");
+
     this.x = d3.scale.linear()
         .range([0, this.width]);
 
@@ -71,10 +70,12 @@ DistVis.prototype.initVis = function(){
 
     this.xAxis = d3.svg.axis()
         .scale(this.x)
+        .tickFormat(this.format)
         .orient("bottom");
 
     this.yAxis = d3.svg.axis()
         .scale(this.y)
+        .tickFormat(this.format)
         .orient("left");
 
     this.area = d3.svg.area()
@@ -88,7 +89,7 @@ DistVis.prototype.initVis = function(){
         .on("brush", function(){
         // Trigger selectionChanged event. You'd need to account for filtering by time AND type
         e = that.brush.extent();
-        $(that.eventHandler).trigger("selectionChanged",e);
+        $(that.eventHandler).trigger("brush",[e[0],e[1],that.channel]);
         
         });
     
@@ -96,13 +97,21 @@ DistVis.prototype.initVis = function(){
         .attr("class", "x axis")
         .attr("transform", "translate(0," + this.height + ")")
 
+
     this.svg.append("g")
-        .attr("class", "y axis")
-      .append("text")
-        .attr("transform", "translate(-10,-10) rotate(0)")
-        .attr("dy", ".71em")
-        .style("text-anchor", "end")
+        .attr("class", "y axis");
+
+    //labels for x and y axis
+    this.svg.append("text")
+        .attr("text-anchor", "middle")  
+        .attr("transform", "translate("+ (-35) +","+(this.height/2)+")rotate(-90)")  
         .text("Counts ("+this.channel+")");
+
+    this.svg.append("text")
+        .attr("text-anchor", "middle")
+        .attr("transform", "translate("+ (this.width/2) +","+(this.height+45)+")")  
+        .text("Selected Readout: "+this.channel);
+
 
     this.svg.append("g")
         .attr("class","brush");
@@ -206,6 +215,19 @@ DistVis.prototype.onSelectionChange= function (selectionStart, selectionEnd){
 
 }
 
+
+DistVis.prototype.onPlateChange= function (d){
+
+
+    // TODO: call wrangle function
+    this.data = d;
+
+    this.wrangleData();
+
+    this.updateVis();
+    // do nothing -- no update when brushing
+
+}
 
 /*
  *

@@ -29,7 +29,7 @@ ScatterVis = function(_parentElement, _data, _channelx, _channely, _eventHandler
     
 
     // TODO: define all "constants" here
-    this.margin = {top: 20, right: 20, bottom: 40, left: 80},
+    this.margin = {top: 20, right: 20, bottom: 50, left: 80},
     this.width = 800 - this.margin.left - this.margin.right,
     this.height = 500 - this.margin.top - this.margin.bottom;
 
@@ -90,12 +90,20 @@ ScatterVis.prototype.initVis = function(){
         .attr("transform", "translate(0," + this.height + ")")
 
     this.svg.append("g")
-        .attr("class", "y axis")
-      .append("text")
-        .attr("transform", "translate(-10,-10) rotate(0)")
-        .attr("dy", ".71em")
-        .style("text-anchor", "end")
-        .text("Scatter ("+this.channelx+","+this.channely+")");
+        .attr("class", "y axis");
+
+    //labels for x and y axis
+    this.svg.append("text")
+        .attr("text-anchor", "middle")  // this makes it easy to centre the text as the transform is applied to the anchor
+        .attr("transform", "translate("+ (-35) +","+(this.height/2)+")rotate(-90)")  // text is drawn off the screen top left, move down and out and rotate
+        .text("Channel 1 Readout: "+this.channelx);
+
+    this.svg.append("text")
+        .attr("text-anchor", "middle")  // this makes it easy to centre the text as the transform is applied to the anchor
+        .attr("transform", "translate("+ (this.width/2) +","+(this.height+45)+")")  // centre below axis
+        .text("Channel 2 Readout: "+this.channely);
+
+
 
     //TODO: implement the slider -- see example at http://bl.ocks.org/mbostock/6452972
     //this.addSlider(this.svg)
@@ -112,13 +120,20 @@ ScatterVis.prototype.initVis = function(){
 /**
  * Method to wrangle the data. In this case it takes an options object
   */
-ScatterVis.prototype.wrangleData= function(){
+ScatterVis.prototype.wrangleData= function(_filter){
 
     // displayData should hold the data which is visualized
     // pretty simple in this case -- no modifications needed
     that = this;
 
-    var data = this.data.map(function(d) {
+    var filter = function(){return true;}
+    if (_filter != null){
+        filter = _filter;
+    }
+
+    var filtered_data = this.data.filter(filter);
+
+    var data = filtered_data.map(function(d) {
         return  {"platewell": d.platewell,
                 "fpA": d.fpA,
                 "fpB": d.fpB,
@@ -131,15 +146,14 @@ ScatterVis.prototype.wrangleData= function(){
 
     //set domain for scales
 
-    this.x.domain(d3.extent(data.map(function(d){ return d[that.channelx]; })))
+    this.x.domain(d3.extent(this.data.map(function(d){ return d[that.channelx]; })))
 
-    this.y.domain(d3.extent(data.map(function(d) {return d[that.channely]; })));
+    this.y.domain(d3.extent(this.data.map(function(d) {return d[that.channely]; })));
 
     //this.wt.domain(d3.extent(data.map(function(d) {return d.wt; })));
 
     this.displayData = data;
 
-    console.log(data);
 }
 
 
@@ -164,6 +178,7 @@ ScatterVis.prototype.updateVis = function(){
     this.svg.select(".y.axis")
         .call(this.yAxis)
 
+    this.svg.selectAll(".dot").remove()
     // updates graph
     this.dot = this.svg.selectAll(".dot")
         .data(this.displayData)
@@ -176,12 +191,15 @@ ScatterVis.prototype.updateVis = function(){
 
     //color encode welltype size encode drug-like property
     this.dot.append("circle")
-        .attr("fill", function(d) {console.log(that.wt(d.wt)); return that.wt(d.wt); })
+        .attr("fill", function(d) {return that.wt(d.wt); })
         .attr("fill-opacity",0.6)
-        .attr("stroke","red")
+        .attr("stroke","grey")
         //.attr("stroke-width", function(d) {return d.mw ? that.mw(d.mw) : 0;})
         .attr("stroke-opacity",0.2)
-        .attr("r",function(d){return d.logp ? that.logp(d.logp) : 10; })
+        .attr("r",10)
+        .on("click",function(d) {
+            $(that.eventHandler).trigger("select",d.platewell);
+        });
 
     //this.dots.exit().remove();
 
@@ -193,14 +211,34 @@ ScatterVis.prototype.updateVis = function(){
  * be defined here.
  * @param selection
  */
-ScatterVis.prototype.onSelectionChange= function (selectionStart, selectionEnd){
+ScatterVis.prototype.onSelectionChange= function (selection){
 
     // TODO: call wrangle function
+    this.wrangleData(function(d) {
+        var flag = true;
+        Object.keys(selection).map(function(k) {
+            flag = (d[k] >= selection[k][0]) && (d[k] <= selection[k][1]) && flag
+        });
+        return flag;
+    });
 
+    this.updateVis();
     // do nothing -- no update when brushing
 
 }
 
+ScatterVis.prototype.onPlateChange= function (d){
+
+
+    // TODO: call wrangle function
+    this.data = d;
+
+    this.wrangleData();
+
+    this.updateVis();
+    // do nothing -- no update when brushing
+
+}
 
 /*
  *

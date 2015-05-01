@@ -26,7 +26,6 @@ PlateVis = function(_parentElement, _data, _channel, _eventHandler){
     this.eventHandler = _eventHandler;
     this.displayData = [];
     this.alphabetic = "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z".split(" ");
-    
 
     // TODO: define all "constants" here
     this.margin = {top: 20, right: 20, bottom: 20, left: 20},
@@ -87,29 +86,38 @@ PlateVis.prototype.initVis = function(){
 /**
  * Method to wrangle the data. In this case it takes an options object
   */
-PlateVis.prototype.wrangleData= function(){
+PlateVis.prototype.wrangleData= function(_filter){
 
     // displayData should hold the data which is visualized
     // pretty simple in this case -- no modifications needed
     that = this;
 
-    var data = this.data.map(function(d) {
+    var filter = function(){return true;}
+    if (_filter != null){
+        filter = _filter;
+    }
+
+    var filtered_data = this.data.filter(filter);
+
+
+    var data = filtered_data.map(function(d) {
         return  {"platewell": d.platewell,
                 "well":d.well,
+                "welltype":d.welltype,
                 "readout":d[that.channel]};
     });
 
 
     //set domain for scales
-    var columns = data.map(function(d){ return that.get_column(d.well); });
+    var columns = this.data.map(function(d){ return that.get_column(d.well); });
     
-    var wells = data.map(function(d){ return that.get_row(d.well); });
+    var wells = this.data.map(function(d){ return that.get_row(d.well); });
 
     this.x.domain(d3.extent(columns));
 
     this.y.domain(d3.extent(wells));
 
-    this.readout.domain(d3.extent(data.map(function(d){ return d.readout; })));
+    this.readout.domain(d3.extent(this.data.map(function(d){ return d[that.channel]; })));
 
     this.displayData = data;
 
@@ -125,30 +133,53 @@ PlateVis.prototype.updateVis = function(){
 
     // TODO: implement update graphs (D3: update, enter, exit)
 
+    that = this;
     // updates axis
 
     //updates graph
+    this.svg.selectAll(".well").remove();
+
     this.well = this.svg.selectAll(".well")
         .data(this.displayData)
+
+    //this.well.exit().remove();
+
+    var dot = this.well
         .enter()
         .append("g")
         .attr("class","well")
         .attr("transform",function(d) {
             return "translate ("+ that.x(that.get_column(d.well)) + "," + that.y(that.get_row(d.well)) + ")";
-        });
+        })
+        .on("click",function(d){
 
-    this.well.append("circle")
+            $(that.eventHandler).trigger("select",d.platewell);
+         
+         });
+
+    dot.append("circle")
         .attr("r", this.height / 40)
         .attr("fill",function(d) {return that.readout(d.readout)});
 
-    this.well.append("text")
-        .attr("font-size", this.height/50)
+
+    dot.append("text")
+        .attr("font-size", this.height / 50)
         .attr("x",0)
         .attr("y",4)
         .attr("text-anchor","middle")
+        .attr("fill",function(d){
+            if (d.welltype == "P") {
+                return "red";
+            } else if (d.welltype == "N") {
+                return "green";
+            }
+        })
         .text(function(d){ return d.readout});
 
-    //this.dots.exit().remove();
+    dot.append("circle")
+        .attr("r", this.height / 40)
+        .attr("fill","white")
+        .attr("fill-opacity",0);
 
 }
 
@@ -158,14 +189,34 @@ PlateVis.prototype.updateVis = function(){
  * be defined here.
  * @param selection
  */
-PlateVis.prototype.onSelectionChange= function (selectionStart, selectionEnd){
+PlateVis.prototype.onSelectionChange= function (selection){
 
     // TODO: call wrangle function
+    this.wrangleData(function(d) {
+        var flag = true;
+        Object.keys(selection).map(function(k) {
+            flag = (d[k] >= selection[k][0]) && (d[k] <= selection[k][1]) && flag
+        });
+        return flag;
+    });
 
+    this.updateVis();
     // do nothing -- no update when brushing
 
 }
 
+PlateVis.prototype.onPlateChange= function (d){
+
+
+    // TODO: call wrangle function
+    this.data = d;
+
+    this.wrangleData();
+
+    this.updateVis();
+    // do nothing -- no update when brushing
+
+}
 
 /*
  *
