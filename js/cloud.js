@@ -31,8 +31,8 @@ CloudVis = function(_parentElement, _data, _channel, _reverse, _eventHandler){
 
     // TODO: define all "constants" here
     this.margin = {top: 20, right: 20, bottom: 20, left: 20},
-    this.width = 1000 - this.margin.left - this.margin.right,
-    this.height = 500 - this.margin.top - this.margin.bottom;
+    this.width = 720 - this.margin.left - this.margin.right,
+    this.height = 480 - this.margin.top - this.margin.bottom;
 
 
     this.initVis();

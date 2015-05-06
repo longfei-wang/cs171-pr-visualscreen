@@ -29,7 +29,7 @@ PlateSelector = function(_parentElement, _data, _selection, _eventHandler){
 
     // TODO: define all "constants" here
     this.margin = {top: 20, right: 20, bottom: 20, left: 20},
-    this.width = 650 - this.margin.left - this.margin.right,
+    this.width = window.innerWidth - this.margin.left - this.margin.right,
     this.height = 100 - this.margin.top - this.margin.bottom;
 
 

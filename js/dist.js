@@ -26,6 +26,7 @@ DistVis = function(_parentElement, _data, _channel, _eventHandler){
     this.eventHandler = _eventHandler;
     this.displayData = [];
     this.bins = 100;
+    this.controls = [];
     
 
     // TODO: define all "constants" here
@@ -105,9 +106,10 @@ DistVis.prototype.initVis = function(){
     this.svg.append("text")
         .attr("text-anchor", "middle")  
         .attr("transform", "translate("+ (-35) +","+(this.height/2)+")rotate(-90)")  
-        .text("Counts ("+this.channel+")");
+        .text("Counts");
 
     this.svg.append("text")
+        .attr("id","xlabel")
         .attr("text-anchor", "middle")
         .attr("transform", "translate("+ (this.width/2) +","+(this.height+45)+")")  
         .text("Selected Readout: "+this.channel);
@@ -141,6 +143,7 @@ DistVis.prototype.wrangleData= function(){
         return  d[that.channel];
     });
 
+    this.controls = this.data.filter(function(d){return d.welltype == "P" || d.welltype == "N"; });
     //set domain for scales
 
     this.x.domain(d3.extent(data))
@@ -165,6 +168,7 @@ DistVis.prototype.updateVis = function(){
 
     // TODO: implement update graphs (D3: update, enter, exit)
 
+
     // updates axis
     this.svg.select(".x.axis")
         .call(this.xAxis)
@@ -177,13 +181,31 @@ DistVis.prototype.updateVis = function(){
     this.svg.select(".y.axis")
         .call(this.yAxis)
 
+    //draw all the controls
+    var controls = this.svg.selectAll(".controls")
+        .data(this.controls,function(d){return d.platewell;});
+
+    controls.enter()
+        .append("line")
+        .attr("class","controls")
+        .attr("x1",function(d) {return that.x(d[that.channel]); })
+        .attr("x2",function(d) {return that.x(d[that.channel]); })
+        .attr("y1",0)
+        .attr("y2",this.height)
+        .attr("style",function(d) {
+            return "stroke:"+(d.welltype=="P" ? "red" : "green") +";stroke-width:1;stroke-opacity:0.3";
+        });
+
+    controls.exit().remove();
+
     // updates graph
     var path = this.svg.selectAll(".area")
       .data([this.displayData])
 
     path.enter()
       .append("path")
-      .attr("class", "area");
+      .attr("class", "area")
+      .style("opacity",0.6);
 
     path
       .transition()
@@ -222,6 +244,8 @@ DistVis.prototype.onPlateChange= function (d){
     // TODO: call wrangle function
     this.data = d;
 
+    this.brush.clear();
+
     this.wrangleData();
 
     this.updateVis();
@@ -229,6 +253,21 @@ DistVis.prototype.onPlateChange= function (d){
 
 }
 
+DistVis.prototype.onChannelChange= function (c){
+
+
+    // TODO: call wrangle function
+    this.channel = c;
+    
+    this.parentElement.select("#xlabel")
+        .text("Selected Readout: "+this.channel);
+
+    this.wrangleData();
+
+    this.updateVis();
+    // do nothing -- no update when brushing
+
+}
 /*
  *
  * ==================================

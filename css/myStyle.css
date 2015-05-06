@@ -24,3 +24,7 @@ body{
     fill-opacity: .5;
     pointer-events: none;
 }
+
+#plateVis,#distVis1,#distVis2,#distVis3,#chemicalVis,#scatterVis text {
+    cursor: default;
+}

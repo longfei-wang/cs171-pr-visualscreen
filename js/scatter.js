@@ -30,8 +30,8 @@ ScatterVis = function(_parentElement, _data, _channelx, _channely, _eventHandler
 
     // TODO: define all "constants" here
     this.margin = {top: 20, right: 20, bottom: 50, left: 80},
-    this.width = 800 - this.margin.left - this.margin.right,
-    this.height = 500 - this.margin.top - this.margin.bottom;
+    this.width = 720 - this.margin.left - this.margin.right,
+    this.height = 480 - this.margin.top - this.margin.bottom;
 
 
 
@@ -63,6 +63,8 @@ ScatterVis.prototype.initVis = function(){
 
 
     // creates axis and scales
+    this.format = d3.format("s");
+    
     this.x = d3.scale.linear()
         .range([0, this.width]);
 
@@ -75,14 +77,22 @@ ScatterVis.prototype.initVis = function(){
     this.mw = d3.scale.linear()
         .domain([0,2000]).range([10,0]);
 
-    this.wt = d3.scale.category20();
+    this.wt = {
+        "P" : "red",
+        "N" : "green",
+        "X" : "blue",
+        "E" : "white",
+        "B" : "white"
+    }
 
     this.xAxis = d3.svg.axis()
         .scale(this.x)
+        .tickFormat(this.format)
         .orient("bottom");
 
     this.yAxis = d3.svg.axis()
         .scale(this.y)
+        .tickFormat(this.format)
         .orient("left");
 
     this.svg.append("g")
@@ -94,14 +104,16 @@ ScatterVis.prototype.initVis = function(){
 
     //labels for x and y axis
     this.svg.append("text")
+        .attr("id","ylabel")
         .attr("text-anchor", "middle")  // this makes it easy to centre the text as the transform is applied to the anchor
-        .attr("transform", "translate("+ (-35) +","+(this.height/2)+")rotate(-90)")  // text is drawn off the screen top left, move down and out and rotate
-        .text("Channel 1 Readout: "+this.channelx);
+        .attr("transform", "translate("+ (-40) +","+(this.height/2)+")rotate(-90)")  // text is drawn off the screen top left, move down and out and rotate
+        .text("Channel 2 Readout: "+this.channely);
 
     this.svg.append("text")
+        .attr("id","xlabel")
         .attr("text-anchor", "middle")  // this makes it easy to centre the text as the transform is applied to the anchor
         .attr("transform", "translate("+ (this.width/2) +","+(this.height+45)+")")  // centre below axis
-        .text("Channel 2 Readout: "+this.channely);
+        .text("Channel 1 Readout: "+this.channelx);
 
 
 
@@ -178,7 +190,7 @@ ScatterVis.prototype.updateVis = function(){
     this.svg.select(".y.axis")
         .call(this.yAxis)
 
-    this.svg.selectAll(".dot").remove()
+    this.svg.selectAll(".dot").remove();
     // updates graph
     this.dot = this.svg.selectAll(".dot")
         .data(this.displayData)
@@ -191,8 +203,8 @@ ScatterVis.prototype.updateVis = function(){
 
     //color encode welltype size encode drug-like property
     this.dot.append("circle")
-        .attr("fill", function(d) {return that.wt(d.wt); })
-        .attr("fill-opacity",0.6)
+        .attr("fill", function(d) {return that.wt[d.wt]; })
+        .attr("fill-opacity",0.2)
         .attr("stroke","grey")
         //.attr("stroke-width", function(d) {return d.mw ? that.mw(d.mw) : 0;})
         .attr("stroke-opacity",0.2)
@@ -240,6 +252,26 @@ ScatterVis.prototype.onPlateChange= function (d){
 
 }
 
+ScatterVis.prototype.onChannelChange= function (c1,c2){
+
+
+    // TODO: call wrangle function
+    this.channelx = c1;
+    
+    this.channely = c2;
+
+    this.parentElement.select("#xlabel")
+        .text("Channel 1 Readout: "+this.channelx);
+    
+    this.parentElement.select("#ylabel")
+        .text("Channel 2 Readout: "+this.channely);
+    
+    this.wrangleData();
+
+    this.updateVis();
+    // do nothing -- no update when brushing
+
+}
 /*
  *
  * ==================================

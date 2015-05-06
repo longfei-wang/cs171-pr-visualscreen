@@ -25,12 +25,14 @@ PlateVis = function(_parentElement, _data, _channel, _eventHandler){
     this.channel = _channel;
     this.eventHandler = _eventHandler;
     this.displayData = [];
+    this.selection = [];
     this.alphabetic = "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z".split(" ");
+    this.filter = null;
 
     // TODO: define all "constants" here
     this.margin = {top: 20, right: 20, bottom: 20, left: 20},
-    this.width = 800 - this.margin.left - this.margin.right,
-    this.height = 500 - this.margin.top - this.margin.bottom;
+    this.width = 720 - this.margin.left - this.margin.right,
+    this.height = 480 - this.margin.top - this.margin.bottom;
 
     this.initVis();
 }
@@ -58,6 +60,7 @@ PlateVis.prototype.initVis = function(){
       .append("g")
         .attr("transform", "translate(" + this.margin.left + "," + this.margin.top + ")");
 
+    this.format = d3.format(".3s");
 
     // creates axis and scales
     this.x = d3.scale.linear()
@@ -66,6 +69,7 @@ PlateVis.prototype.initVis = function(){
     this.y = d3.scale.linear()
         .range([this.height, 0]);
 
+    this.color = d3.scale.category10();
     //set the heatmap range based on category 20c
     this.readout = d3.scale.quantile()
         .range("#3182bd #6baed6 #9ecae1 #c6dbef #fdd0a2 #fdae6b #fd8d3c #e6550d".split(" "));
@@ -92,19 +96,36 @@ PlateVis.prototype.wrangleData= function(_filter){
     // pretty simple in this case -- no modifications needed
     that = this;
 
-    var filter = function(){return true;}
-    if (_filter != null){
-        filter = _filter;
-    }
+    // var filter = function(){return true;}
+    // if (_filter != null){
+    //     filter = _filter;
+    // }
 
-    var filtered_data = this.data.filter(filter);
+    //var filtered_data = this.data.filter(filter);
 
 
-    var data = filtered_data.map(function(d) {
-        return  {"platewell": d.platewell,
+    var data = this.data.map(function(d) {
+        
+        var entry =  {"platewell": d.platewell,
                 "well":d.well,
                 "welltype":d.welltype,
-                "readout":d[that.channel]};
+                "readout":d[that.channel],
+                "opacity":1,
+                "selected":0
+            };
+                
+
+        if (_filter != null) {
+            entry.opacity = _filter(d) ? 1 : 0.2;
+        }
+        
+        if (that.selection.indexOf(d.platewell) > -1 ) {
+
+            entry.selected = that.selection.indexOf(d.platewell)+1;
+        
+        }
+
+        return entry;
     });
 
 
@@ -137,12 +158,12 @@ PlateVis.prototype.updateVis = function(){
     // updates axis
 
     //updates graph
-    this.svg.selectAll(".well").remove();
+    //this.svg.selectAll(".well").remove();
 
     this.well = this.svg.selectAll(".well")
-        .data(this.displayData)
+        .data(this.displayData, function(d) {return d.platewell + that.channel + d.opacity + d.selected;});
 
-    //this.well.exit().remove();
+    this.well.exit().remove();
 
     var dot = this.well
         .enter()
@@ -157,29 +178,45 @@ PlateVis.prototype.updateVis = function(){
          
          });
 
+
+    //circle color colde for channel 1
     dot.append("circle")
         .attr("r", this.height / 40)
-        .attr("fill",function(d) {return that.readout(d.readout)});
+        .attr("fill",function(d) {return that.readout(d.readout)})
+        .attr("fill-opacity",function(d) {return d.opacity; });
 
+    //a circle indicating selection
+    dot.append("circle")
+        .attr("r", this.height / 40 + 1 )
+        .attr("fill","none")
+        .attr("stroke-width",2)
+        .attr("stroke",function(d) {
 
-    dot.append("text")
-        .attr("font-size", this.height / 50)
-        .attr("x",0)
-        .attr("y",4)
-        .attr("text-anchor","middle")
-        .attr("fill",function(d){
-            if (d.welltype == "P") {
-                return "red";
-            } else if (d.welltype == "N") {
-                return "green";
+            if (d.welltype != "X") {
+                return d.welltype == "P" ? "red" :
+                    (d.welltype == "N" ? "green" :
+                    "grey"); 
             }
-        })
-        .text(function(d){ return d.readout});
 
-    dot.append("circle")
-        .attr("r", this.height / 40)
-        .attr("fill","white")
-        .attr("fill-opacity",0);
+            return d.selected ? "purple" : "white";
+
+        });
+
+    //text of readout
+    dot.append("text")
+        .attr("font-size", 10)
+        .attr("x",0)
+        .attr("y", 4)
+        .attr("text-anchor","middle")
+        .text(function(d){ return that.format(d.readout);});
+
+    //index of selection
+    dot.append("text")
+        .attr("font-size", 10)
+        .attr("x", - this.height / 40 - 4)
+        .attr("y", - this.height / 40)
+        .attr("text-anchor","right")
+        .text(function(d){ return d.selected ? (that.selection.indexOf(d.platewell) + 1) : "";});
 
 }
 
@@ -192,15 +229,30 @@ PlateVis.prototype.updateVis = function(){
 PlateVis.prototype.onSelectionChange= function (selection){
 
     // TODO: call wrangle function
-    this.wrangleData(function(d) {
+    this.filter = function(d) {
         var flag = true;
         Object.keys(selection).map(function(k) {
             flag = (d[k] >= selection[k][0]) && (d[k] <= selection[k][1]) && flag
         });
         return flag;
-    });
+    }
+
+    this.wrangleData(this.filter);
 
     this.updateVis();
+    // do nothing -- no update when brushing
+
+}
+
+PlateVis.prototype.onChemSelectionChange= function (_selection){
+
+    // TODO: call wrangle function
+    this.selection=_selection;
+
+    this.wrangleData(this.filter);
+
+    this.updateVis();
+
     // do nothing -- no update when brushing
 
 }
@@ -211,7 +263,27 @@ PlateVis.prototype.onPlateChange= function (d){
     // TODO: call wrangle function
     this.data = d;
 
+    this.filter = null;
+
     this.wrangleData();
+
+    this.updateVis();
+    // do nothing -- no update when brushing
+
+}
+
+PlateVis.prototype.onChannelChange= function (c){
+
+
+    // TODO: call wrangle function
+    this.channel = c;
+
+    this.filter = null;
+    
+    this.wrangleData();
+
+    //this is for a bug updating
+    this.svg.selectAll(".well").remove();
 
     this.updateVis();
     // do nothing -- no update when brushing
@@ -232,7 +304,6 @@ PlateVis.prototype.onPlateChange= function (d){
 PlateVis.prototype.get_row = function(well) {
 
 
-
     return  this.alphabetic.indexOf(well.substr(0,1)) + 1;
 
 }
@@ -243,64 +314,6 @@ PlateVis.prototype.get_column = function(well) {
 
 }
     
-
-
-/**
- * creates the y axis slider
- * @param svg -- the svg element
- */
-PlateVis.prototype.addSlider = function(svg){
-    var that = this;
-
-    // TODO: Think of what is domain and what is range for the y axis slider !!
-    var sliderScale = d3.scale.linear().domain([0.1,1]).range([0,this.height])
-
-    var sliderDragged = function(){
-        var value = Math.max(0, Math.min(200,d3.event.y));
-
-        var sliderValue = sliderScale.invert(value);
-
-        // TODO: do something here to deform the y scale
-        //console.log("Y Axis Slider value: ", sliderValue);
-        that.y.exponent(sliderValue);
-
-        d3.select(this)
-            .attr("y", function () {
-                return sliderScale(sliderValue);
-            })
-
-        that.updateVis({});
-    }
-    var sliderDragBehaviour = d3.behavior.drag()
-        .on("drag", sliderDragged)
-
-    var sliderGroup = svg.append("g").attr({
-        class:"sliderGroup",
-        "transform":"translate(-70,30)"
-    })
-
-    sliderGroup.append("rect").attr({
-        class:"sliderBg",
-        x:5,
-        width:10,
-        height:200
-    }).style({
-        fill:"lightgray"
-    })
-
-    sliderGroup.append("rect").attr({
-        "class":"sliderHandle",
-        y:200,
-        width:20,
-        height:10,
-        rx:2,
-        ry:2
-    }).style({
-        fill:"#333333"
-    }).call(sliderDragBehaviour)
-
-
-}
 
 
 

@@ -27,13 +27,15 @@ ChemicalVis = function(_parentElement, _data, _eventHandler){
     this.eventHandler = _eventHandler;
     this.displayData = [];
 
-    this.box = {width:125,height:200};
+    this.box = {width:125,height:200,outerwidth:145,outerheight:220};
 
     // TODO: define all "constants" here
-    this.margin = {top: 20, right: 20, bottom: 20, left: 20},
-    this.width = 800 - this.margin.left - this.margin.right,
-    this.height = 500 - this.margin.top - this.margin.bottom;
+    this.margin = {top: 20, right: 200, bottom: 20, left: 20},
+    this.width = window.innerWidth - this.margin.left - this.margin.right,
+    this.height = 0;
 
+    this.numRow = 0;
+    this.numCol = Math.floor(this.width / this.box.outerwidth);
 
     this.initVis();
 }
@@ -56,20 +58,13 @@ ChemicalVis.prototype.initVis = function(){
 
     // TODO: modify this to append an svg element, not modify the current placeholder SVG element
     this.svg = this.parentElement.append("svg")
-        .attr("width", this.width + this.margin.left + this.margin.right)
-        .attr("height", this.height + this.margin.top + this.margin.bottom)
+        .attr("width", this.width)
+        .attr("height", this.height)
       .append("g")
         .attr("transform", "translate(" + this.margin.left + "," + this.margin.top + ")");
 
 
-    // creates axis and scales
-    this.x = d3.scale.linear()
-        .domain([0, 5])
-        .range([0, this.width]);
 
-    this.y = d3.scale.linear()
-        .domain([0, 2])
-        .range([0, this.height]);
 
     // filter, aggregate, modify data
     this.wrangleData();
@@ -92,7 +87,9 @@ ChemicalVis.prototype.wrangleData= function(){
     //select molecules in selection
     var filtered = this.data.filter(function(d) {return d.svg && (that.selection.indexOf(d.platewell) > -1) ;});
 
-    this.displayData = filtered;
+    this.displayData = filtered.sort(function(a,b) {
+        return d3.ascending(that.selection.indexOf(a.platewell),that.selection.indexOf(b.platewell)); 
+    });
 
 }
 
@@ -106,6 +103,21 @@ ChemicalVis.prototype.updateVis = function(){
 
     // TODO: implement update graphs (D3: update, enter, exit)
 
+    this.numRow = Math.ceil(this.displayData.length / this.numCol);
+
+    this.height = this.numRow * this.box.outerheight + (this.numRow ? this.margin.bottom : 0);
+
+    this.parentElement.select("svg").attr("height", this.height);
+
+    // creates axis and scales
+    this.x = d3.scale.linear()
+        .domain([0, this.numCol])
+        .range([0, this.width]);
+
+    this.y = d3.scale.linear()
+        .domain([0, this.numRow])
+        .range([0, this.height]);
+
     //add symbols (svg reference)
     this.symbol = this.svg
         .append("g")
@@ -115,17 +127,18 @@ ChemicalVis.prototype.updateVis = function(){
     this.svg.selectAll(".chemical").remove();
 
     this.chemical = this.svg.selectAll(".chemical")
-        .data(this.displayData)
+        .data(this.displayData,function(d){return d.platewell;})
         .enter()
         .append("g")
         .attr("class", "chemical")
         .attr("transform",function(d, i){ 
-            return "translate("+ that.x(i % 5) +","+  that.y(Math.floor(i/5))  +")";
+            return "translate("+ that.x(i % that.numCol) +","+  that.y(Math.floor(i/that.numCol))  +")";
         })
         .on("click",function(d){
             $(that.eventHandler).trigger("select",d.platewell);
         });
     
+    //shadow
     this.chemical.append("rect")
         .attr("x",5)
         .attr("y",5)
@@ -133,30 +146,60 @@ ChemicalVis.prototype.updateVis = function(){
         .attr("height",this.box.height)
         .attr("style","fill:grey");
 
-
+    //draw top box
     this.chemical.append("rect")
         .attr("width",this.box.width)
         .attr("height",this.box.height*0.75)
         .attr("style","fill:white;stroke:black;");
 
+    //draw chemical
     this.chemical.append("use")
-      .attr("xlink:href", function(d) {return "#sym"+d.platewell; })
-      .attr("width", this.box.width)
-      .attr("height", this.box.height*0.75);
+        .attr("xlink:href", function(d) {return "#sym"+d.platewell; })
+        .attr("width", this.box.width)
+        .attr("height", this.box.height*0.75);
 
+    //the index
+    this.chemical.append("text")
+        .attr("y",14)
+        .attr("x",2)
+        .attr("anchor","left")
+        .text(function(d) {return that.selection.indexOf(d.platewell)+1;})
 
-
-    this.chemical.append("rect")
+    //the bottom box
+    var p = this.chemical.append("g")
+        .attr("transform","translate("+0+","+this.box.height*0.75+")")
+    
+    p.append("rect")
         .attr("width",this.box.width)
         .attr("height",this.box.height*0.25)
-        .attr("y",this.box.height*0.75)
         .attr("style","fill:white;stroke:black;")
 
-    this.chemical.append("text")
-        .attr("y",this.box.height*0.75+20)
-        .attr("x",10)
+    //if logP < 5 draw a rect
+    var logp = p.append("g")
+        .attr("transform","translate("+5+","+5+")")
+
+    logp.append("rect")
+        .attr("width",this.box.height*0.20)
+        .attr("height",this.box.height*0.20)
+        .attr("style",function(d) {return "fill:" + (d.logp < 5 ? "cyan":"white");})
+    logp.append("text")
+        .attr("x",5)
+        .attr("y",15)
         .attr("anchor","left")
-        .text(function(d) {return "logP: "+d.logp;})
+        .text(function(d) {return d.logp < 5 ? "logP" : "";})
+
+    //if MW < 500 draw a rect
+    var mw = p.append("g")
+        .attr("transform","translate("+(this.box.height*0.20+10)+","+5+")")
+    mw.append("rect")
+        .attr("width",this.box.height*0.20)
+        .attr("height",this.box.height*0.20)
+        .attr("style",function(d) {return "fill:" + (d.mw < 500 ? "orange":"white");})
+    mw.append("text")
+        .attr("x",5)
+        .attr("y",15)
+        .attr("anchor","left")
+        .text(function(d) {return d.mw < 500 ? "MW" : "";});
 }
 
 /**
@@ -166,9 +209,11 @@ ChemicalVis.prototype.updateVis = function(){
  * @param selection
  */
 ChemicalVis.prototype.onChemSelectionChange= function (_selection){
-
+    
     // TODO: call wrangle function
     this.selection=_selection;
+
+
 
     this.wrangleData();
 
@@ -198,29 +243,6 @@ ChemicalVis.prototype.onPlateChange= function (d){
  *
  * */
 
-ChemicalVis.prototype.collide =  function(node) {
-  var r = node.radius + 16,
-      nx1 = node.x - r,
-      nx2 = node.x + r,
-      ny1 = node.y - r,
-      ny2 = node.y + r;
-  return function(quad, x1, y1, x2, y2) {
-    if (quad.point && (quad.point !== node)) {
-      var x = node.x - quad.point.x,
-          y = node.y - quad.point.y,
-          l = Math.sqrt(x * x + y * y),
-          r = node.radius + quad.point.radius;
-      if (l < r) {
-        l = (l - r) / l * .5;
-        node.x -= x *= l;
-        node.y -= y *= l;
-        quad.point.x += x;
-        quad.point.y += y;
-      }
-    }
-    return x1 > nx2 || x2 < nx1 || y1 > ny2 || y2 < ny1;
-  };
-}
 
 
 
